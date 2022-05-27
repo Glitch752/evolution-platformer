@@ -132,11 +132,11 @@ let initialPlayerSpeedScale = 1 / 50;
 let playerSpeedScaleX, playerSpeedScaleY;
 
 // --------------------- EVOLUTION DATA ---------------------
-let crossOverProbability = 0.8;
-let mutationProbability = 0.1;
+let crossOverProbability = 0.5;
+let mutationProbability = 01;
 let advancePercent = 0.3;
 let lowAdvancePercent = 0.1;
-let fitnessProbabilityPerPlayer = 0.3;
+let fitnessProbabilityPerPlayer = 0.5;
 
 let nodes = 20;
 
@@ -215,19 +215,18 @@ function evolvePlayers() {
         newPlayer.network = mutate(newPlayer.network, mutationProbability);
 
         newPlayers[i] = newPlayer;
-        newPlayers[i].x = 50;
-        newPlayers[i].y = 300;
+        newPlayers[i].x = 100;
+        newPlayers[i].y = 400;
         newPlayers[i].xVel = 0;
         newPlayers[i].yVel = 0;
         
         newPlayers[i].timeLeft = 0;
         newPlayers[i].networkIndex = 0;
         newPlayers[i].finished = false;
-        newPlayers[i].fitness = 0;
         newPlayers[i].keysPressed = {};
     }
 
-    players = newPlayers;
+    players = JSON.parse(JSON.stringify(newPlayers));
 }
 
 function getRandomPlayer(players, probabilityPerPlayer) {
@@ -483,7 +482,8 @@ function render(time) {
         ctx.fillText(`Y: ${Math.round(players[selectedPlayer].y * 100) / 100}`, canvas.width - 20, canvas.height - 200);
         ctx.fillText(`X velocity: ${Math.round(players[selectedPlayer].xVel * 100) / 100}`, canvas.width - 20, canvas.height - 240);
         ctx.fillText(`Y velocity: ${Math.round(players[selectedPlayer].yVel * 100) / 100}`, canvas.width - 20, canvas.height - 280);
-        ctx.fillText(`${players[selectedPlayer].name}`, canvas.width - 20, canvas.height - 320);
+        ctx.fillText(`Previous fitness: ${Math.round(players[selectedPlayer].fitness * 100) / 100}`, canvas.width - 20, canvas.height - 320);
+        ctx.fillText(`${players[selectedPlayer].name}`, canvas.width - 20, canvas.height - 360);
     }
 
     requestAnimationFrame(render);
