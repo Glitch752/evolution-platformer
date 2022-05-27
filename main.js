@@ -6,6 +6,7 @@ window.onload = function() {
 
     document.addEventListener("keydown", documentKeyDown);
     document.addEventListener("keyup", documentKeyUp);
+    document.addEventListener("mousedown", documentMouseDown);
 
     requestAnimationFrame(render);
 }
@@ -17,6 +18,23 @@ function documentKeyDown(e) {
 }
 function documentKeyUp(e) {
     keysPressed[e.key] = false;
+}
+function documentMouseDown(e) {
+    // Check if we clicked any of the players. If we clicked one, set selectedPlayer to that player. If we didn't click any, set selectedPlayer to null.
+    for(let i = 0; i < players.length; i++) {
+        let player = players[i];
+        
+        let startX = (player.x * playerSpeedScaleX) + 1;
+        let endX = (player.x * playerSpeedScaleX) + tileWidth - 1;
+        let startY = (player.y * playerSpeedScaleY) - tileHeight * 2 + 1;
+        let endY = (player.y * playerSpeedScaleY) - 1;
+
+        if(rectanglesColliding(startX, startY, endX, endY, e.clientX, e.clientY, e.clientX, e.clientY)) {
+            selectedPlayer = i;
+            return;
+        }
+    }
+    selectedPlayer = null;
 }
 
 let levelHeight = 12, levelWidth = 48;
@@ -98,6 +116,8 @@ let tileData = {
 let numberOfPlayers = 30;
 
 let players = [];
+// A number or null
+let selectedPlayer = null;
 
 let playerControlling = false;
 
@@ -114,6 +134,9 @@ let playerSpeedScaleX, playerSpeedScaleY;
 // --------------------- EVOLUTION DATA ---------------------
 let crossOverProbability = 0.8;
 let mutationProbability = 0.1;
+let advancePercent = 0.3;
+let lowAdvancePercent = 0.1;
+let fitnessProbabilityPerPlayer = 0.3;
 
 let nodes = 20;
 
@@ -151,7 +174,104 @@ function generatePlayers() {
 function evolvePlayers() {
     let sortedPlayers = players.sort((p1, p2) => p1.fitness - p2.fitness);
     
-    // Todo
+    let newPlayers = [];
+
+    for(let i = 0; i < Math.floor(sortedPlayers.length * advancePercent); i++) {
+        newPlayers.push(sortedPlayers[i]);
+        sortedPlayers.splice(i, 1);
+    }
+
+    for(let i = 0; i < Math.floor(sortedPlayers.length * lowAdvancePercent); i++) {
+        let index = Math.floor(Math.random() * sortedPlayers.length);
+
+        newPlayers.push(sortedPlayers[index]);
+        sortedPlayers.splice(index, 1);
+    }
+
+    while(newPlayers.length < numberOfPlayers) {
+        if(Math.random() < crossOverProbability) {
+            let p1 = getRandomPlayer(sortedPlayers, fitnessProbabilityPerPlayer);
+            let p2 = getRandomPlayer(sortedPlayers, fitnessProbabilityPerPlayer);
+
+            while(p1 === p2) {
+                p2 = getRandomPlayer(sortedPlayers, fitnessProbabilityPerPlayer);
+            }
+
+            let childNetwork = crossOver(p1.network, p2.network);
+
+            let child = p1;
+            child.network = childNetwork;
+            child.name = `Cross-over ${newPlayers.length + 1}`;
+            newPlayers.push(child);
+        } else {
+            let player = getRandomPlayer(sortedPlayers, fitnessProbabilityPerPlayer);
+            player.name = `Copy ${newPlayers.length + 1}`;
+            newPlayers.push(player);
+        }
+    }
+
+    for(let i = 0; i < newPlayers.length; i++) {
+        newPlayer = newPlayers[i];
+        newPlayer.network = mutate(newPlayer.network, mutationProbability);
+
+        newPlayers[i] = newPlayer;
+        newPlayers[i].x = 50;
+        newPlayers[i].y = 300;
+        newPlayers[i].xVel = 0;
+        newPlayers[i].yVel = 0;
+        
+        newPlayers[i].timeLeft = 0;
+        newPlayers[i].networkIndex = 0;
+        newPlayers[i].finished = false;
+        newPlayers[i].fitness = 0;
+        newPlayers[i].keysPressed = {};
+    }
+
+    players = newPlayers;
+}
+
+function getRandomPlayer(players, probabilityPerPlayer) {
+    let sortedPlayers = players.sort((p1, p2) => p1.fitness - p2.fitness);
+
+    let pickedPlayer;
+    let pickIndex = 0;
+    while(!pickedPlayer) {
+        if(Math.random() < probabilityPerPlayer) {
+            pickedPlayer = sortedPlayers[pickIndex];
+        }
+        pickIndex++;
+        if(pickIndex >= sortedPlayers.length) {
+            pickedPlayer = sortedPlayers[0];
+        }
+    }
+
+    return pickedPlayer;
+}
+
+function crossOver(p1, p2) {
+    let index = Math.floor(Math.random() * p1.length);
+    let child = p1.slice(0, index).concat(p2.slice(index));
+    return child;
+}
+
+function mutate(network, mutationRate) {
+    for(let i = 0; i < network.length; i++) {
+        for(attribute in network[i]) {
+            if(Math.random() < mutationRate) {
+                let networkAttribute = networkAttributes.find(a => a.type === attribute);
+                switch(networkAttribute.data) {
+                    case "0|1":
+                        network[i][attribute] = Math.random() > 0.5 ? 0 : 1;
+                        break;
+                    case "0-1000":
+                        network[i][attribute] = Math.random() * 1000;
+                        break;
+                }
+            }
+        }
+    }
+
+    return network;
 }
 
 generatePlayers();
@@ -186,14 +306,12 @@ function render(time) {
 
     let deltaTime = timeDiff / (1 / 60) / 1000;
 
-    if(playerControlling) {
-        let selectedPlayer = 0;
-    
+    if(playerControlling && selectedPlayer !== null) {
         let playerGround = {
             x: players[selectedPlayer].x,
             y: players[selectedPlayer].y + 1
         };
-        if(keysPressed["w"] && collidingWithTile(playerGround)) players[selectedPlayer].yVel -= 20;
+        if(keysPressed["w"] && collidingWithTile(playerGround)) players[selectedPlayer].yVel -= 30;
         if(keysPressed["a"]) players[selectedPlayer].xVel -= 1;
         if(keysPressed["s"]) players[selectedPlayer].yVel += 1;
         if(keysPressed["d"]) players[selectedPlayer].xVel += 1;
@@ -218,10 +336,8 @@ function render(time) {
     }
 
     for(let i = 0; i < players.length; i++) {
-        try{
         if(players[i].timeLeft <= 0) {
             let networkPosition = players[i].network[players[i].networkIndex];
-            players[i].networkIndex++;
             if(!networkPosition) {
                 if(!players[i].finished) {
                     players[i].finished = true;
@@ -239,7 +355,7 @@ function render(time) {
                         generationTime = 0;
 
                         evolvePlayers();
-
+                        
                         break;
                     }
                 }
@@ -250,18 +366,18 @@ function render(time) {
                     "s": networkPosition.pressingS,
                     "d": networkPosition.pressingD
                 };
+                players[i].networkIndex++;
                 players[i].timeLeft = networkPosition.time;
             }
         } else {
             players[i].timeLeft -= timeDiff;
         }
-        }catch(error){alert(error)}
 
         let playerGround = {
             x: players[i].x,
             y: players[i].y + 1
         };
-        if(players[i].keysPressed["w"] && collidingWithTile(playerGround)) players[i].yVel -= 20;
+        if(players[i].keysPressed["w"] && collidingWithTile(playerGround)) players[i].yVel -= 30;
         if(players[i].keysPressed["a"]) players[i].xVel -= 1;
         if(players[i].keysPressed["s"]) players[i].yVel += 1;
         if(players[i].keysPressed["d"]) players[i].xVel += 1;
@@ -270,7 +386,7 @@ function render(time) {
         // Fd = -1/2 * Cd * A * rho * v * v
         var Cd = 0.47; // Dimensionless
         var rho = 1.22; // kg / m^3
-        var A = tileWidth * tileHeight * 2 / (10000);
+        var A = 0.2; //Area, should be the real area of the rectangle but for now 0.2 is fine
 
         var Fx = -0.5 * Cd * A * rho * players[i].xVel * players[i].xVel * players[i].xVel / Math.abs(players[i].xVel);
         var Fy = -0.5 * Cd * A * rho * players[i].yVel * players[i].yVel * players[i].yVel / Math.abs(players[i].yVel);
@@ -356,6 +472,20 @@ function render(time) {
     ctx.fillText(`Delta time: ${Math.round(deltaTime * 100) / 100}`, 20, 40);
     ctx.fillText(`Generation: ${currentGeneration}`, 20, 80);
 
+    if(selectedPlayer !== null) {
+        ctx.fillStyle = "#000000";
+        ctx.font = '30px Arial';
+        ctx.textAlign = "right";
+        ctx.fillText(`Network index: ${players[selectedPlayer].networkIndex}`, canvas.width - 20, canvas.height - 40);
+        ctx.fillText(`Generation time: ${Math.round(generationTime * 100) / 100}`, canvas.width - 20, canvas.height - 80);
+        ctx.fillText(`Time left: ${Math.round(players[selectedPlayer].timeLeft * 100) / 100}`, canvas.width - 20, canvas.height - 120);
+        ctx.fillText(`X: ${Math.round(players[selectedPlayer].x * 100) / 100}`, canvas.width - 20, canvas.height - 160);
+        ctx.fillText(`Y: ${Math.round(players[selectedPlayer].y * 100) / 100}`, canvas.width - 20, canvas.height - 200);
+        ctx.fillText(`X velocity: ${Math.round(players[selectedPlayer].xVel * 100) / 100}`, canvas.width - 20, canvas.height - 240);
+        ctx.fillText(`Y velocity: ${Math.round(players[selectedPlayer].yVel * 100) / 100}`, canvas.width - 20, canvas.height - 280);
+        ctx.fillText(`${players[selectedPlayer].name}`, canvas.width - 20, canvas.height - 320);
+    }
+
     requestAnimationFrame(render);
 }
 
@@ -399,5 +529,5 @@ function rectanglesColliding(rect1X1, rect1Y1, rect1X2, rect1Y2, rect2X1, rect2Y
 }
 
 function calcFitness(player, time) {
-    return player.x - (time / 3);
+    return player.x - (time / 20);
 }
