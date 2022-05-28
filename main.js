@@ -138,18 +138,49 @@ let advancePercent = 0.3;
 let lowAdvancePercent = 0.1;
 let fitnessProbabilityPerPlayer = 0.5;
 
-let nodes = 20;
+let networkLayers = 1;
 
 // Do not modify this stuff
 let currentGeneration = 0;
 let generationTime = 0;
 
-let networkAttributes = [
-    {type: "pressingW", data: "0|1"},
-    {type: "pressingA", data: "0|1"},
-    {type: "pressingS", data: "0|1"},
-    {type: "pressingD", data: "0|1"},
-    {type: "time", data: "0-1000"}
+let networkOutputs = [
+    {type: "pressingW"},
+    {type: "pressingA"},
+    {type: "pressingS"},
+    {type: "pressingD"}
+];
+
+let networkInputs = [
+    {type: "x", default: 0},
+    {type: "y", default: 0},
+    {type: "xVelocity", default: 0},
+    {type: "yVelocity", default: 0},
+
+    // Distance to the closest wall in a direction
+    // From the bottom of the player
+    {type: "distLeft", default: 0},
+    // From the bottom of the player
+    {type: "distRight", default: 0},
+    // From the top of the player
+    {type: "distTop", default: 0},
+    // From the bottom of the player
+    {type: "distBottom", default: 0},
+    // Diagonal distance
+    {type: "distTopLeft", default: 0},
+    // Diagonal distance
+    {type: "distTopRight", default: 0},
+    // Diagonal distance
+    {type: "distBottomLeft", default: 0},
+    // Diagonal distance
+    {type: "distBottomRight", default: 0},
+    // From the top of the player
+    {type: "distLeftTop", default: 0},
+    // From the top of the player
+    {type: "distRightTop", default: 0},
+
+    // Always equal to 1
+    {type: "bias", default: 1}
 ];
 
 function generatePlayers() {
@@ -162,8 +193,6 @@ function generatePlayers() {
             xVel: 0,
             yVel: 0,
             network: createRandomNetwork(),
-            timeLeft: 0,
-            networkIndex: 0,
             finished: false,
             fitness: 0,
             keysPressed: {}
@@ -250,23 +279,68 @@ function getRandomPlayer(players, probabilityPerPlayer) {
 function crossOver(p1, p2) {
     let index = Math.floor(Math.random() * p1.length);
     let child = p1.slice(0, index).concat(p2.slice(index));
+
+    // Check if anything connects to nonexistent neurons
+    for(let i = 0; i < child.length; i++) {
+        for(let c = 0; c < child[i].neurons.length; c++) {
+            for(let n = 0; n < child[i].neurons[c].connections.length; n++) {
+                if(child[i].neurons[c].connections[n].to >= child[i + 1].neurons.length) {
+                    child[i].neurons[c].connections.splice(n, 1);
+                }
+            }
+        }
+    }
+
     return child;
 }
 
 function mutate(network, mutationRate) {
     for(let i = 0; i < network.length; i++) {
-        for(attribute in network[i]) {
-            if(Math.random() < mutationRate) {
-                let networkAttribute = networkAttributes.find(a => a.type === attribute);
-                switch(networkAttribute.data) {
-                    case "0|1":
-                        network[i][attribute] = Math.random() > 0.5 ? 0 : 1;
-                        break;
-                    case "0-1000":
-                        network[i][attribute] = Math.random() * 1000;
-                        break;
+        switch(Math.floor(Math.random() * 3)) {
+            case 0:
+                // Add a new neuron
+                let neuronIndex = Math.floor(Math.random() * network[i].neurons.length);
+                let newNeuron = {
+                    connections: []
+                };
+
+                network[i].neurons.splice(neuronIndex + 1, 0, newNeuron);
+                break;
+            case 1:
+                // Remove a neuron
+                let neuron = Math.floor(Math.random() * network[i].neurons.length);
+                network[i].neurons.splice(neuron, 1);
+                break;
+            case 2:
+                // Modify the neuron's connections
+                for(let n = 0; n < network[i].neurons.length; n++) {
+                    switch(Math.floor(Math.random() * 3)) {
+                        case 0:
+                            // Add a connection
+                            let connectionIndex = Math.floor(Math.random() * network[i].neurons[n].connections.length);
+                            let newConnection = {
+                                to: Math.floor(Math.random() * network[i + 1].neurons.length),
+                                weight: Math.random() * 2 - 1
+                            };
+
+                            network[i].neurons[n].connections.splice(connectionIndex + 1, 0, newConnection);
+                            break;
+                        case 1:
+                            // Remove a connection
+                            let connectionIndex2 = Math.floor(Math.random() * network[i].neurons[n].connections.length);
+                            network[i].neurons[n].connections.splice(connectionIndex2, 1);
+                            break;
+                        case 2:
+                            // Change a connection
+                            for(let c = 0; c < network[i].neurons[n].connections.length; c++) {
+                                if(Math.random() < mutationRate) {
+                                    network[i].neurons[n].connections[c].weight = Math.random() * 2 - 1;
+                                }
+                            }
+                            break;
+                    }
                 }
-            }
+                break;
         }
     }
 
@@ -277,21 +351,44 @@ generatePlayers();
 
 function createRandomNetwork() {
     let network = [];
-    for(let n = 0; n < nodes; n++) {
-        let networkElement = {};
-        for(let a = 0; a < networkAttributes.length; a++) {
-            let value = 0;
-            switch(networkAttributes[a].data) {
-                case "0|1":
-                    value = Math.random() > 0.5 ? 0 : 1;
-                    break;
-                case "0-1000":
-                    value = Math.random() * 1000;
-                    break;
+    let layerNeurons = 0, nextLayerNeurons = Math.floor(Math.random() * 3 + 1);
+    for(let n = 0; n < networkLayers + 2; n++) {
+        let neurons = [];
+        if(n === 0) {
+            for(let i = 0; i < networkInputs.length; i++) {
+                let neuron = {
+                    connections: []
+                }
+                for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
+                    neuron.connections.push({
+                        to: Math.floor(Math.random() * nextLayerNeurons),
+                        weight: Math.random() * 2 - 1
+                    });
+                }
+                neurons.push(neuron);
             }
-            networkElement[networkAttributes[a].type] = value;
+        } else if(n === networkLayers + 2) {
+            for(let i = 0; i < networkOutputs.length; i++) {
+                let neuron = {};
+                neurons.push(neuron);
+            }
+        } else {
+            layerNeurons = nextLayerNeurons;
+            nextLayerNeurons = Math.floor(Math.random() * 3 + 1);
+            for(let i = 0; i < layerNeurons; i++) {
+                let neuron = {
+                    connections: []
+                };
+                for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
+                    neuron.connections.push({
+                        to: Math.floor(Math.random() * nextLayerNeurons),
+                        weight: Math.random() * 2 - 1
+                    });
+                }
+                neurons.push(neuron);
+            }
         }
-        network.push(networkElement);
+        network.push(neurons);
     }
     return network;
 }
@@ -305,16 +402,16 @@ function render(time) {
 
     let deltaTime = timeDiff / (1 / 60) / 1000;
 
-    if(playerControlling && selectedPlayer !== null) {
-        let playerGround = {
-            x: players[selectedPlayer].x,
-            y: players[selectedPlayer].y + 1
-        };
-        if(keysPressed["w"] && collidingWithTile(playerGround)) players[selectedPlayer].yVel -= 30;
-        if(keysPressed["a"]) players[selectedPlayer].xVel -= 1;
-        if(keysPressed["s"]) players[selectedPlayer].yVel += 1;
-        if(keysPressed["d"]) players[selectedPlayer].xVel += 1;
-    }
+    // if(playerControlling && selectedPlayer !== null) {
+    //     let playerGround = {
+    //         x: players[selectedPlayer].x,
+    //         y: players[selectedPlayer].y + 1
+    //     };
+    //     if(keysPressed["w"] && collidingWithTile(playerGround)) players[selectedPlayer].yVel -= 30;
+    //     if(keysPressed["a"]) players[selectedPlayer].xVel -= 1;
+    //     if(keysPressed["s"]) players[selectedPlayer].yVel += 1;
+    //     if(keysPressed["d"]) players[selectedPlayer].xVel += 1;
+    // }
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -335,42 +432,7 @@ function render(time) {
     }
 
     for(let i = 0; i < players.length; i++) {
-        if(players[i].timeLeft <= 0) {
-            let networkPosition = players[i].network[players[i].networkIndex];
-            if(!networkPosition) {
-                if(!players[i].finished) {
-                    players[i].finished = true;
-                    players[i].fitness = calcFitness(players[i], generationTime);
-
-                    players[i].keysPressed = { "w": false, "a": false, "s": false, "d": false };
-
-                    let allFinished = true;
-                    for(let p = 0; p < players.length; p++) {
-                        if(!players[p].finished) allFinished = false;
-                    }
-
-                    if(allFinished) {
-                        currentGeneration++;
-                        generationTime = 0;
-
-                        evolvePlayers();
-                        
-                        break;
-                    }
-                }
-            } else {
-                players[i].keysPressed = {
-                    "w": networkPosition.pressingW,
-                    "a": networkPosition.pressingA,
-                    "s": networkPosition.pressingS,
-                    "d": networkPosition.pressingD
-                };
-                players[i].networkIndex++;
-                players[i].timeLeft = networkPosition.time;
-            }
-        } else {
-            players[i].timeLeft -= timeDiff;
-        }
+        // Evaluate the neural network
 
         let playerGround = {
             x: players[i].x,
@@ -475,15 +537,12 @@ function render(time) {
         ctx.fillStyle = "#000000";
         ctx.font = '30px Arial';
         ctx.textAlign = "right";
-        ctx.fillText(`Network index: ${players[selectedPlayer].networkIndex}`, canvas.width - 20, canvas.height - 40);
-        ctx.fillText(`Generation time: ${Math.round(generationTime * 100) / 100}`, canvas.width - 20, canvas.height - 80);
-        ctx.fillText(`Time left: ${Math.round(players[selectedPlayer].timeLeft * 100) / 100}`, canvas.width - 20, canvas.height - 120);
-        ctx.fillText(`X: ${Math.round(players[selectedPlayer].x * 100) / 100}`, canvas.width - 20, canvas.height - 160);
-        ctx.fillText(`Y: ${Math.round(players[selectedPlayer].y * 100) / 100}`, canvas.width - 20, canvas.height - 200);
-        ctx.fillText(`X velocity: ${Math.round(players[selectedPlayer].xVel * 100) / 100}`, canvas.width - 20, canvas.height - 240);
-        ctx.fillText(`Y velocity: ${Math.round(players[selectedPlayer].yVel * 100) / 100}`, canvas.width - 20, canvas.height - 280);
-        ctx.fillText(`Previous fitness: ${Math.round(players[selectedPlayer].fitness * 100) / 100}`, canvas.width - 20, canvas.height - 320);
-        ctx.fillText(`${players[selectedPlayer].name}`, canvas.width - 20, canvas.height - 360);
+        ctx.fillText(`X: ${Math.round(players[selectedPlayer].x * 100) / 100}`, canvas.width - 20, canvas.height - 20);
+        ctx.fillText(`Y: ${Math.round(players[selectedPlayer].y * 100) / 100}`, canvas.width - 20, canvas.height - 60);
+        ctx.fillText(`X velocity: ${Math.round(players[selectedPlayer].xVel * 100) / 100}`, canvas.width - 20, canvas.height - 100);
+        ctx.fillText(`Y velocity: ${Math.round(players[selectedPlayer].yVel * 100) / 100}`, canvas.width - 20, canvas.height - 140);
+        ctx.fillText(`Previous fitness: ${Math.round(players[selectedPlayer].fitness * 100) / 100}`, canvas.width - 20, canvas.height - 180);
+        ctx.fillText(`${players[selectedPlayer].name}`, canvas.width - 20, canvas.height - 220);
     }
 
     requestAnimationFrame(render);
