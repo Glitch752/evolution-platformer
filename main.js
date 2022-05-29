@@ -7,10 +7,16 @@ window.onload = function() {
     document.addEventListener("keydown", documentKeyDown);
     document.addEventListener("keyup", documentKeyUp);
     document.addEventListener("mousedown", documentMouseDown);
+    document.addEventListener("mousemove", documentMouseMove);
 
     requestAnimationFrame(render);
 }
 let keysPressed = {};
+let mouseX = 0, mouseY = 0;
+function documentMouseMove(e) {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+}
 function documentKeyDown(e) {
     if(playerControlling) {
         keysPressed[e.key] = true;
@@ -301,7 +307,8 @@ function mutate(network, mutationRate) {
                 // Add a new neuron
                 let neuronIndex = Math.floor(Math.random() * network[i].neurons.length);
                 let newNeuron = {
-                    connections: []
+                    connections: [],
+                    value: 0
                 };
 
                 network[i].neurons.splice(neuronIndex + 1, 0, newNeuron);
@@ -357,7 +364,8 @@ function createRandomNetwork() {
         if(n === 0) {
             for(let i = 0; i < networkInputs.length; i++) {
                 let neuron = {
-                    connections: []
+                    connections: [],
+                    value: 0
                 }
                 for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
                     neuron.connections.push({
@@ -367,9 +375,12 @@ function createRandomNetwork() {
                 }
                 neurons.push(neuron);
             }
-        } else if(n === networkLayers + 2) {
+        } else if(n === networkLayers + 1) {
             for(let i = 0; i < networkOutputs.length; i++) {
-                let neuron = {};
+                let neuron = {
+                    connections: [],
+                    value: 0
+                };
                 neurons.push(neuron);
             }
         } else {
@@ -377,7 +388,8 @@ function createRandomNetwork() {
             nextLayerNeurons = Math.floor(Math.random() * 3 + 1);
             for(let i = 0; i < layerNeurons; i++) {
                 let neuron = {
-                    connections: []
+                    connections: [],
+                    value: 0
                 };
                 for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
                     neuron.connections.push({
@@ -537,12 +549,81 @@ function render(time) {
         ctx.fillStyle = "#000000";
         ctx.font = '30px Arial';
         ctx.textAlign = "right";
-        ctx.fillText(`X: ${Math.round(players[selectedPlayer].x * 100) / 100}`, canvas.width - 20, canvas.height - 20);
-        ctx.fillText(`Y: ${Math.round(players[selectedPlayer].y * 100) / 100}`, canvas.width - 20, canvas.height - 60);
-        ctx.fillText(`X velocity: ${Math.round(players[selectedPlayer].xVel * 100) / 100}`, canvas.width - 20, canvas.height - 100);
-        ctx.fillText(`Y velocity: ${Math.round(players[selectedPlayer].yVel * 100) / 100}`, canvas.width - 20, canvas.height - 140);
-        ctx.fillText(`Previous fitness: ${Math.round(players[selectedPlayer].fitness * 100) / 100}`, canvas.width - 20, canvas.height - 180);
-        ctx.fillText(`${players[selectedPlayer].name}`, canvas.width - 20, canvas.height - 220);
+        ctx.fillText(`${players[selectedPlayer].name}`, canvas.width - 20, 40);
+        ctx.fillText(`X: ${Math.round(players[selectedPlayer].x * 100) / 100}`, canvas.width - 20, 80);
+        ctx.fillText(`Y: ${Math.round(players[selectedPlayer].y * 100) / 100}`, canvas.width - 20, 120);
+        ctx.fillText(`X velocity: ${Math.round(players[selectedPlayer].xVel * 100) / 100}`, canvas.width - 20, 160);
+        ctx.fillText(`Y velocity: ${Math.round(players[selectedPlayer].yVel * 100) / 100}`, canvas.width - 20, 200);
+        ctx.fillText(`Previous fitness: ${Math.round(players[selectedPlayer].fitness * 100) / 100}`, canvas.width - 20, 240);
+
+        // Render the network
+        let networkHeight = 300;
+        let networkWidth = 500;
+
+        let playerNetwork = players[selectedPlayer].network;
+
+        let layerWidth = networkWidth / playerNetwork.length;
+        let widthOffset = canvas.width / 2 - networkWidth / 3;
+
+        for(let i = 0; i < playerNetwork.length; i++) {
+            let layer = playerNetwork[i];
+            let layerHeight = networkHeight / layer.length;
+            let nodeWidth = layerWidth * i;
+            let heightOffset = layerHeight / 2;
+            for(let j = 0; j < layer.length; j++) {
+                let node = layer[j];
+                let nodeHeight = layerHeight * j;
+
+                for(let k = 0; k < node.connections.length; k++) {
+                    let connection = node.connections[k];
+                    let toNode = connection.to;
+                    
+                    let toNodeWidth = layerWidth * (i + 1);
+
+                    let toLayer = playerNetwork[i + 1];
+                    let toLayerHeight = networkHeight / toLayer.length;
+                    let toNodeHeight = toLayerHeight * toNode;
+                    let toHeightOffset = toLayerHeight / 2;
+
+                    ctx.beginPath();
+                    ctx.moveTo(widthOffset + nodeWidth, 20 + nodeHeight + heightOffset);
+                    ctx.lineTo(widthOffset + toNodeWidth, 20 + toNodeHeight + toHeightOffset);
+                    if(connection.weight > 0) {
+                        ctx.strokeStyle = "#0000ff";
+                    } else {
+                        ctx.strokeStyle = "#ff0000";
+                    }
+                    let widthMultiplier = 3;
+                    ctx.lineWidth = Math.abs(connection.weight) * widthMultiplier;
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.arc(widthOffset + nodeWidth, 20 + nodeHeight + heightOffset, 8, 0, 2 * Math.PI);
+                if(pointInCircle(mouseX, mouseY, widthOffset + nodeWidth, 20 + nodeHeight + heightOffset, 15)) {
+                    ctx.font = '20px Arial';
+                    ctx.textAlign = "right";
+                    ctx.fillStyle = "#000000";
+                    ctx.fillText(`${node.value}`, widthOffset + nodeWidth + 25, 25 + nodeHeight + heightOffset);
+                    ctx.fillStyle = "#222222";
+                } else {
+                    ctx.fillStyle = "#000000";
+                }
+                ctx.fill();
+
+                if(i === 0) {
+                    ctx.fillStyle = "#000000";
+                    ctx.font = '20px Arial';
+                    ctx.textAlign = "right";
+                    ctx.fillText(`${networkInputs[j].type}`, widthOffset + nodeWidth - 10, 25 + nodeHeight + heightOffset);
+                } else if(i === playerNetwork.length - 1) {
+                    ctx.fillStyle = "#000000";
+                    ctx.font = '20px Arial';
+                    ctx.textAlign = "left";
+                    ctx.fillText(`${networkOutputs[j].type}`, widthOffset + nodeWidth + 10, 25 + nodeHeight + heightOffset);
+                }
+            }
+        }
     }
 
     requestAnimationFrame(render);
@@ -589,4 +670,8 @@ function rectanglesColliding(rect1X1, rect1Y1, rect1X2, rect1Y2, rect2X1, rect2Y
 
 function calcFitness(player, time) {
     return player.x - (time / 20);
+}
+
+function pointInCircle(x, y, cx, cy, radius) {
+    return (x - cx) * (x - cx) + (y - cy) * (y - cy) < radius * radius;
 }
