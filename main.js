@@ -119,7 +119,7 @@ let tileData = {
     }
 }
 
-let numberOfPlayers = 30;
+let numberOfPlayers = 100;
 
 let players = [];
 // A number or null
@@ -144,7 +144,7 @@ let advancePercent = 0.3;
 let lowAdvancePercent = 0.1;
 let fitnessProbabilityPerPlayer = 0.5;
 
-let networkLayers = 1;
+let networkLayers = 2;
 
 // Do not modify this stuff
 let currentGeneration = 0;
@@ -358,7 +358,16 @@ generatePlayers();
 
 function createRandomNetwork() {
     let network = [];
-    let layerNeurons = 0, nextLayerNeurons = Math.floor(Math.random() * 3 + 1);
+    let layerNeurons = [];
+    for(let i = 0; i < networkLayers + 2; i++) {
+        if(i === 0) {
+            layerNeurons.push(networkInputs.length);
+        } else if(i === networkLayers + 1) {
+            layerNeurons.push(networkOutputs.length);
+        } else {
+            layerNeurons.push(Math.floor(Math.random() * 3) + 1);
+        }
+    }
     for(let n = 0; n < networkLayers + 2; n++) {
         let neurons = [];
         if(n === 0) {
@@ -367,11 +376,24 @@ function createRandomNetwork() {
                     connections: [],
                     value: 0
                 }
-                for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
-                    neuron.connections.push({
-                        to: Math.floor(Math.random() * nextLayerNeurons),
-                        weight: Math.random() * 2 - 1
-                    });
+                if(i === networkInputs.length - 1) {
+                    for(let l = 0; l < networkLayers; l++) {
+                        for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
+                            neuron.connections.push({
+                                to: Math.floor(Math.random() * layerNeurons[l + 1]),
+                                bias: true,
+                                toLayer: l + 1,
+                                weight: Math.random() * 2 - 1
+                            });
+                        }
+                    }
+                } else {
+                    for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
+                        neuron.connections.push({
+                            to: Math.floor(Math.random() * layerNeurons[n + 1]),
+                            weight: Math.random() * 2 - 1
+                        });
+                    }
                 }
                 neurons.push(neuron);
             }
@@ -384,16 +406,14 @@ function createRandomNetwork() {
                 neurons.push(neuron);
             }
         } else {
-            layerNeurons = nextLayerNeurons;
-            nextLayerNeurons = Math.floor(Math.random() * 3 + 1);
-            for(let i = 0; i < layerNeurons; i++) {
+            for(let i = 0; i < layerNeurons[n]; i++) {
                 let neuron = {
                     connections: [],
                     value: 0
                 };
-                for(let c = 0; c < Math.floor(Math.random() * 3); c++) {
+                for(let c = 0; c < Math.floor(Math.random() * 5); c++) {
                     neuron.connections.push({
-                        to: Math.floor(Math.random() * nextLayerNeurons),
+                        to: Math.floor(Math.random() * layerNeurons[n + 1]),
                         weight: Math.random() * 2 - 1
                     });
                 }
@@ -402,6 +422,21 @@ function createRandomNetwork() {
         }
         network.push(neurons);
     }
+
+    // Remove any duplicate connections
+    for(let n = 0; n < network.length; n++) {
+        for(let i = 0; i < network[n].length; i++) {
+            for(let c = 0; c < network[n][i].connections.length; c++) {
+                for(let d = c + 1; d < network[n][i].connections.length; d++) {
+                    if(network[n][i].connections[c].to === network[n][i].connections[d].to) {
+                        network[n][i].connections.splice(d, 1);
+                        d--;
+                    }
+                }
+            }
+        }
+    }
+
     return network;
 }
 
@@ -445,6 +480,166 @@ function render(time) {
 
     for(let i = 0; i < players.length; i++) {
         // Evaluate the neural network
+        let inputs = [];
+        for(let n = 0; n < networkInputs.length; n++) {
+            let playerXTile = Math.floor(players[i].x / tileWidth);
+            let playerYTile = Math.floor(players[i].y / tileHeight);
+            switch(networkInputs[n].type) {
+                case "x":
+                    inputs.push(players[i].x / tileWidth);
+                    break;
+                case "y":
+                    inputs.push(players[i].y / tileHeight);
+                    break;
+                case "xVelocity":
+                    inputs.push(players[i].xVel / tileWidth);
+                    break;
+                case "xVelocity":
+                    inputs.push(players[i].yVel / tileHeight);
+                    break;
+                case "distLeft":
+                    let distLeft = -1;
+                    for(let x = playerXTile - 1; x >= 0; x--) {
+                        if(tileData[tileMap[playerYTile + 1][x].type].collision) {
+                            distLeft = playerXTile - x;
+                            break;
+                        }
+                    }
+                    inputs.push(distLeft);
+                    break;
+                case "distRight":
+                    let distRight = -1;
+                    for(let x = playerXTile + 1; x < tileMap[playerYTile + 1].length; x++) {
+                        if(tileData[tileMap[playerYTile + 1][x].type].collision) {
+                            distRight = x - playerXTile - 2;
+                            break;
+                        }
+                    }
+                    inputs.push(distRight);
+                    break;
+                case "distTop":
+                    let distTop = -1;
+                    for(let y = playerYTile - 1; y >= 0; y--) {
+                        if(tileData[tileMap[y][playerXTile].type].collision) {
+                            distTop = playerYTile - y;
+                            break;
+                        }
+                    }
+                    inputs.push(distTop);
+                    break;
+                case "distBottom":
+                    let distBottom = -1;
+                    for(let y = playerYTile + 1; y < tileMap.length; y++) {
+                        if(tileData[tileMap[y][playerXTile].type].collision) {
+                            distBottom = y - playerYTile - 2;
+                            break;
+                        }
+                    }
+                    inputs.push(distBottom);
+                    break;
+                case "distTopLeft":
+                    let distTopLeft = -1;
+                    for(let y = playerYTile - 1, x = playerXTile - 1; y >= 0 && x >= 0; y--, x--) {
+                        if(tileData[tileMap[y][x].type].collision) {
+                            distTopLeft = Math.sqrt(Math.pow(playerXTile - x, 2) + Math.pow(playerYTile - y, 2));
+                            break;
+                        }
+                    }
+                    inputs.push(distTopLeft);
+                    break;
+                case "distTopRight":
+                    let distTopRight = -1;
+                    for(let y = playerYTile - 1, x = playerXTile + 1; y >= 0 && x < tileMap[playerYTile + 1].length; y--, x++) {
+                        if(tileData[tileMap[y][x].type].collision) {
+                            distTopRight = Math.sqrt(Math.pow(x - playerXTile - 1, 2) + Math.pow(playerYTile - y, 2));
+                            break;
+                        }
+                    }
+                    inputs.push(distTopRight);
+                    break;
+                case "distBottomLeft":
+                    let distBottomLeft = -1;
+                    for(let y = playerYTile + 1, x = playerXTile - 1; y < tileMap.length && x >= 0; y++, x--) {
+                        if(tileData[tileMap[y][x].type].collision) {
+                            distBottomLeft = Math.sqrt(Math.pow(playerXTile - x, 2) + Math.pow(y - playerYTile - 1, 2)) - 1;
+                            break;
+                        }
+                    }
+                    inputs.push(distBottomLeft);
+                    break;
+                case "distBottomRight":
+                    let distBottomRight = -1;
+                    for(let y = playerYTile + 1, x = playerXTile + 1; y < tileMap.length && x < tileMap[playerYTile + 1].length; y++, x++) {
+                        if(tileData[tileMap[y][x].type].collision) {
+                            distBottomRight = Math.sqrt(Math.pow(x - playerXTile - 2, 2) + Math.pow(y - playerYTile - 2, 2));
+                            break;
+                        }
+                    }
+                    inputs.push(distBottomRight);
+                    break;
+                case "distLeftTop":
+                    let distLeftTop = -1;
+                    for(let x = playerXTile - 1; x >= 0; x--) {
+                        if(tileData[tileMap[playerYTile][x].type].collision) {
+                            distLeftTop = playerXTile - x;
+                            break;
+                        }
+                    }
+                    inputs.push(distLeftTop);
+                    break;
+                case "distRightTop":
+                    let distRightTop = -1;
+                    for(let x = playerXTile + 1; x < tileMap[playerYTile].length; x++) {
+                        if(tileData[tileMap[playerYTile][x].type].collision) {
+                            distRightTop = x - playerXTile - 2;
+                            break;
+                        }
+                    }
+                    inputs.push(distRightTop);
+                    break;
+                default:
+                    inputs.push(networkInputs[n].default);
+            }
+        }
+
+        for(let n = 0; n < players[i].network[0].length; n++) {
+            players[i].network[0][n].value = inputs[n];
+        }
+
+        // Add the value of each neuron times the weight of it's connection to the next layer
+        for(let n = 0; n < players[i].network.length; n++) {
+            for(let m = 0; m < players[i].network[n].length; m++) {
+                // Loop through all the connections of the current neuron
+                let connections = players[i].network[n][m].connections;
+                for(let c = 0; c < connections.length; c++) {
+                    let value = connections[c].weight * players[i].network[n][m].value;
+                    value = value > 0 ? 1 : 0;
+                    if(connections[c].bias) {
+                        players[i].network[connections[c].toLayer][connections[c].to].value = value;
+                    } else {
+                        players[i].network[n + 1][connections[c].to].value = value;
+                    }
+                }
+
+                if(n === players[i].network.length - 1) {
+                    let output = players[i].network[n][m].value;
+                    switch(networkOutputs[m].type) {
+                        case "pressingW":
+                            players[i].keysPressed["w"] = output;
+                            break;
+                        case "pressingA":
+                            players[i].keysPressed["a"] = output;
+                            break;
+                        case "pressingS":
+                            players[i].keysPressed["s"] = output;
+                            break;
+                        case "pressingD":
+                            players[i].keysPressed["d"] = output;
+                            break;
+                    }
+                }
+            }
+        }
 
         let playerGround = {
             x: players[i].x,
@@ -577,10 +772,17 @@ function render(time) {
                 for(let k = 0; k < node.connections.length; k++) {
                     let connection = node.connections[k];
                     let toNode = connection.to;
-                    
-                    let toNodeWidth = layerWidth * (i + 1);
 
-                    let toLayer = playerNetwork[i + 1];
+                    let toLayerIndex;
+                    if(connection.bias) {
+                        toLayerIndex = connection.toLayer;
+                    } else {
+                        toLayerIndex = i + 1;
+                    }
+                    
+                    let toNodeWidth = layerWidth * toLayerIndex;
+
+                    let toLayer = playerNetwork[toLayerIndex];
                     let toLayerHeight = networkHeight / toLayer.length;
                     let toNodeHeight = toLayerHeight * toNode;
                     let toHeightOffset = toLayerHeight / 2;
@@ -602,9 +804,9 @@ function render(time) {
                 ctx.arc(widthOffset + nodeWidth, 20 + nodeHeight + heightOffset, 8, 0, 2 * Math.PI);
                 if(pointInCircle(mouseX, mouseY, widthOffset + nodeWidth, 20 + nodeHeight + heightOffset, 15)) {
                     ctx.font = '20px Arial';
-                    ctx.textAlign = "right";
+                    ctx.textAlign = "left";
                     ctx.fillStyle = "#000000";
-                    ctx.fillText(`${node.value}`, widthOffset + nodeWidth + 25, 25 + nodeHeight + heightOffset);
+                    ctx.fillText(`${Math.floor(node.value * 100) / 100}`, widthOffset + nodeWidth + 10, 25 + nodeHeight + heightOffset);
                     ctx.fillStyle = "#222222";
                 } else {
                     ctx.fillStyle = "#000000";
