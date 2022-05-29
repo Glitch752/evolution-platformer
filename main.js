@@ -146,6 +146,8 @@ let fitnessProbabilityPerPlayer = 0.5;
 
 let networkLayers = 2;
 
+let generationTimeout = 10000; // In milliseconds
+
 // Do not modify this stuff
 let currentGeneration = 0;
 let generationTime = 0;
@@ -288,10 +290,10 @@ function crossOver(p1, p2) {
 
     // Check if anything connects to nonexistent neurons
     for(let i = 0; i < child.length; i++) {
-        for(let c = 0; c < child[i].neurons.length; c++) {
-            for(let n = 0; n < child[i].neurons[c].connections.length; n++) {
-                if(child[i].neurons[c].connections[n].to >= child[i + 1].neurons.length) {
-                    child[i].neurons[c].connections.splice(n, 1);
+        for(let c = 0; c < child[i].length; c++) {
+            for(let n = 0; n < child[i][c].connections.length; n++) {
+                if(child[i][c].connections[n].to >= child[i + 1].length) {
+                    child[i][c].connections.splice(n, 1);
                 }
             }
         }
@@ -301,53 +303,65 @@ function crossOver(p1, p2) {
 }
 
 function mutate(network, mutationRate) {
-    for(let i = 0; i < network.length; i++) {
+    for(let i = 1; i < network.length - 1; i++) {
         switch(Math.floor(Math.random() * 3)) {
             case 0:
                 // Add a new neuron
-                let neuronIndex = Math.floor(Math.random() * network[i].neurons.length);
+                let neuronIndex = Math.floor(Math.random() * network[i].length);
                 let newNeuron = {
                     connections: [],
                     value: 0
                 };
 
-                network[i].neurons.splice(neuronIndex + 1, 0, newNeuron);
+                network[i].splice(neuronIndex + 1, 0, newNeuron);
                 break;
             case 1:
                 // Remove a neuron
-                let neuron = Math.floor(Math.random() * network[i].neurons.length);
-                network[i].neurons.splice(neuron, 1);
+                if(network[i].length === 0) continue
+                let neuron = Math.floor(Math.random() * network[i].length);
+                network[i].splice(neuron, 1);
                 break;
             case 2:
                 // Modify the neuron's connections
-                for(let n = 0; n < network[i].neurons.length; n++) {
+                for(let n = 0; n < network[i].length; n++) {
                     switch(Math.floor(Math.random() * 3)) {
                         case 0:
                             // Add a connection
-                            let connectionIndex = Math.floor(Math.random() * network[i].neurons[n].connections.length);
+                            let connectionIndex = Math.floor(Math.random() * network[i][n].connections.length);
                             let newConnection = {
-                                to: Math.floor(Math.random() * network[i + 1].neurons.length),
+                                to: Math.floor(Math.random() * network[i + 1].length),
                                 weight: Math.random() * 2 - 1
                             };
 
-                            network[i].neurons[n].connections.splice(connectionIndex + 1, 0, newConnection);
+                            network[i][n].connections.splice(connectionIndex + 1, 0, newConnection);
                             break;
                         case 1:
                             // Remove a connection
-                            let connectionIndex2 = Math.floor(Math.random() * network[i].neurons[n].connections.length);
-                            network[i].neurons[n].connections.splice(connectionIndex2, 1);
+                            let connectionIndex2 = Math.floor(Math.random() * network[i][n].connections.length);
+                            network[i][n].connections.splice(connectionIndex2, 1);
                             break;
                         case 2:
                             // Change a connection
-                            for(let c = 0; c < network[i].neurons[n].connections.length; c++) {
+                            for(let c = 0; c < network[i][n].connections.length; c++) {
                                 if(Math.random() < mutationRate) {
-                                    network[i].neurons[n].connections[c].weight = Math.random() * 2 - 1;
+                                    network[i][n].connections[c].weight = Math.random() * 2 - 1;
                                 }
                             }
                             break;
                     }
                 }
                 break;
+        }
+    }
+
+    // Check if anything connects to nonexistent neurons
+    for(let i = 0; i < network.length; i++) {
+        for(let c = 0; c < network[i].length; c++) {
+            for(let n = 0; n < network[i][c].connections.length; n++) {
+                if(network[i][c].connections[n].to >= network[i + 1].length) {
+                    network[i][c].connections.splice(n, 1);
+                }
+            }
         }
     }
 
@@ -615,8 +629,10 @@ function render(time) {
                     let value = connections[c].weight * players[i].network[n][m].value;
                     value = value > 0 ? 1 : 0;
                     if(connections[c].bias) {
+                        if(players[i].network[connections[c].toLayer][connections[c].to] === undefined) continue;
                         players[i].network[connections[c].toLayer][connections[c].to].value = value;
                     } else {
+                        if(players[i].network[n + 1][connections[c].to] === undefined) continue;
                         players[i].network[n + 1][connections[c].to].value = value;
                     }
                 }
@@ -649,6 +665,12 @@ function render(time) {
         if(players[i].keysPressed["a"]) players[i].xVel -= 1;
         if(players[i].keysPressed["s"]) players[i].yVel += 1;
         if(players[i].keysPressed["d"]) players[i].xVel += 1;
+
+        if(generationTime > generationTimeout) {
+            generationTime = 0;
+            currentGeneration++;
+            evolvePlayers();
+        }
 
         // Drag force
         // Fd = -1/2 * Cd * A * rho * v * v
