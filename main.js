@@ -304,7 +304,7 @@ function crossOver(p1, p2) {
 
 function mutate(network, mutationRate) {
     for(let i = 1; i < network.length - 1; i++) {
-        switch(Math.floor(Math.random() * 3)) {
+        switch(Math.floor(Math.random() * (3 / mutationRate))) {
             case 0:
                 // Add a new neuron
                 let neuronIndex = Math.floor(Math.random() * network[i].length);
@@ -317,14 +317,14 @@ function mutate(network, mutationRate) {
                 break;
             case 1:
                 // Remove a neuron
-                if(network[i].length === 0) continue
+                if(network[i].length <= 1) continue
                 let neuron = Math.floor(Math.random() * network[i].length);
                 network[i].splice(neuron, 1);
                 break;
             case 2:
                 // Modify the neuron's connections
                 for(let n = 0; n < network[i].length; n++) {
-                    switch(Math.floor(Math.random() * 3)) {
+                    switch(Math.floor(Math.random() * (3 / mutationRate))) {
                         case 0:
                             // Add a connection
                             let connectionIndex = Math.floor(Math.random() * network[i][n].connections.length);
@@ -343,13 +343,17 @@ function mutate(network, mutationRate) {
                         case 2:
                             // Change a connection
                             for(let c = 0; c < network[i][n].connections.length; c++) {
-                                if(Math.random() < mutationRate) {
-                                    network[i][n].connections[c].weight = Math.random() * 2 - 1;
-                                }
+                                network[i][n].connections[c].weight = Math.random() * 2 - 1;
                             }
+                            break;
+                        default:
+                            // Do nothing
                             break;
                     }
                 }
+                break;
+            default:
+                // Do nothing
                 break;
         }
     }
@@ -620,6 +624,13 @@ function render(time) {
             players[i].network[0][n].value = inputs[n];
         }
 
+        // Set all neurons' values to 0
+        for(let n = 1; n < players[i].network.length; n++) {
+            for(let m = 0; m < players[i].network[n].length; m++) {
+                players[i].network[n][m].value = 0;
+            }
+        }
+
         // Add the value of each neuron times the weight of it's connection to the next layer
         for(let n = 0; n < players[i].network.length; n++) {
             for(let m = 0; m < players[i].network[n].length; m++) {
@@ -669,7 +680,11 @@ function render(time) {
         if(generationTime > generationTimeout) {
             generationTime = 0;
             currentGeneration++;
+            for(let p = 0; p < players.length; p++) {
+                players[p].fitness = calcFitness(players[p], generationTime);
+            }
             evolvePlayers();
+            break;
         }
 
         // Drag force
