@@ -257,8 +257,6 @@ function evolvePlayers() {
         newPlayers[i].xVel = 0;
         newPlayers[i].yVel = 0;
         
-        newPlayers[i].timeLeft = 0;
-        newPlayers[i].networkIndex = 0;
         newPlayers[i].finished = false;
         newPlayers[i].keysPressed = {};
     }
@@ -292,8 +290,14 @@ function crossOver(p1, p2) {
     for(let i = 0; i < child.length; i++) {
         for(let c = 0; c < child[i].length; c++) {
             for(let n = 0; n < child[i][c].connections.length; n++) {
-                if(child[i][c].connections[n].to >= child[i + 1].length) {
-                    child[i][c].connections.splice(n, 1);
+                if(child[i][c].connections[n].bias) {
+                    if(child[i][c].connections[n].to >= child[child[i][c].connections[n].toLayer].length) {
+                        child[i][c].connections.splice(n, 1);
+                    }
+                } else {
+                    if(child[i][c].connections[n].to >= child[i + 1].length) {
+                        child[i][c].connections.splice(n, 1);
+                    }
                 }
             }
         }
@@ -317,7 +321,7 @@ function mutate(network, mutationRate) {
                 break;
             case 1:
                 // Remove a neuron
-                if(network[i].length <= 1) continue
+                if(network[i].length <= 1) continue;
                 let neuron = Math.floor(Math.random() * network[i].length);
                 network[i].splice(neuron, 1);
                 break;
@@ -351,6 +355,20 @@ function mutate(network, mutationRate) {
                             break;
                     }
                 }
+                
+                // Remove any duplicate connections
+                for(let n = 0; n < network.length; n++) {
+                    for(let i = 0; i < network[n].length; i++) {
+                        for(let c = 0; c < network[n][i].connections.length; c++) {
+                            for(let d = c + 1; d < network[n][i].connections.length; d++) {
+                                if(network[n][i].connections[c].to === network[n][i].connections[d].to) {
+                                    network[n][i].connections.splice(d, 1);
+                                    d--;
+                                }
+                            }
+                        }
+                    }
+                }
                 break;
             default:
                 // Do nothing
@@ -362,8 +380,14 @@ function mutate(network, mutationRate) {
     for(let i = 0; i < network.length; i++) {
         for(let c = 0; c < network[i].length; c++) {
             for(let n = 0; n < network[i][c].connections.length; n++) {
-                if(network[i][c].connections[n].to >= network[i + 1].length) {
-                    network[i][c].connections.splice(n, 1);
+                if(network[i][c].connections[n].bias) {
+                    if(network[i][c].connections[n].to >= network[network[i][c].connections[n].toLayer].length) {
+                        network[i][c].connections.splice(n, 1);
+                    }
+                } else {
+                    if(network[i][c].connections[n].to >= network[i + 1].length) {
+                        network[i][c].connections.splice(n, 1);
+                    }
                 }
             }
         }
@@ -776,6 +800,7 @@ function render(time) {
     ctx.textAlign = "left";
     ctx.fillText(`Delta time: ${Math.round(deltaTime * 100) / 100}`, 20, 40);
     ctx.fillText(`Generation: ${currentGeneration}`, 20, 80);
+    ctx.fillText(`Top fitness: ${Math.floor(players.sort((p1, p2) => p2.fitness - p1.fitness)[0].fitness * 100) / 100}`, 20, 120);
 
     if(selectedPlayer !== null) {
         ctx.fillStyle = "#000000";
