@@ -871,7 +871,12 @@ function render(time) {
                     ctx.fillText(`${Math.floor(node.value * 100) / 100}`, widthOffset + nodeWidth + 10, 25 + nodeHeight + heightOffset);
                     ctx.fillStyle = "#222222";
                 } else {
-                    ctx.fillStyle = "#000000";
+                    let clampedValue = Math.min(Math.max(node.value, 0), 1);
+                    let greyRGB = [100, 100, 100];
+                    let colorRGB = [100, 200, 100];
+
+                    let color = `rgb(${lerp(greyRGB[0], colorRGB[0], clampedValue)}, ${lerp(greyRGB[1], colorRGB[1], clampedValue)}, ${lerp(greyRGB[2], colorRGB[2], clampedValue)})`;
+                    ctx.fillStyle = color;
                 }
                 ctx.fill();
 
@@ -938,4 +943,8 @@ function calcFitness(player, time) {
 
 function pointInCircle(x, y, cx, cy, radius) {
     return (x - cx) * (x - cx) + (y - cy) * (y - cy) < radius * radius;
+}
+
+function lerp(a, b, t) {
+    return a + t * (b - a);
 }
