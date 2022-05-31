@@ -705,7 +705,7 @@ function render(time) {
             generationTime = 0;
             currentGeneration++;
             for(let p = 0; p < players.length; p++) {
-                players[p].fitness = calcFitness(players[p], generationTime);
+                players[p].fitness = calcFitness(players[p]);
             }
             evolvePlayers();
             break;
@@ -800,7 +800,9 @@ function render(time) {
     ctx.textAlign = "left";
     ctx.fillText(`Delta time: ${Math.round(deltaTime * 100) / 100}`, 20, 40);
     ctx.fillText(`Generation: ${currentGeneration}`, 20, 80);
-    ctx.fillText(`Top fitness: ${Math.floor(players.sort((p1, p2) => p2.fitness - p1.fitness)[0].fitness * 100) / 100}`, 20, 120);
+    let fitnessArray = players.map(p => p.fitness);
+    let highestFitness = Math.max(...fitnessArray);
+    ctx.fillText(`Top fitness: ${Math.floor(highestFitness * 100) / 100}`, 20, 120);
 
     if(selectedPlayer !== null) {
         ctx.fillStyle = "#000000";
@@ -811,7 +813,7 @@ function render(time) {
         ctx.fillText(`Y: ${Math.round(players[selectedPlayer].y * 100) / 100}`, canvas.width - 20, 120);
         ctx.fillText(`X velocity: ${Math.round(players[selectedPlayer].xVel * 100) / 100}`, canvas.width - 20, 160);
         ctx.fillText(`Y velocity: ${Math.round(players[selectedPlayer].yVel * 100) / 100}`, canvas.width - 20, 200);
-        ctx.fillText(`Previous fitness: ${Math.round(players[selectedPlayer].fitness * 100) / 100}`, canvas.width - 20, 240);
+        ctx.fillText(`Fitness: ${Math.round(calcFitness(players[selectedPlayer]) * 10) / 10}`, canvas.width - 20, 240);
 
         // Render the network
         let networkHeight = 300;
@@ -937,8 +939,8 @@ function rectanglesColliding(rect1X1, rect1Y1, rect1X2, rect1Y2, rect2X1, rect2Y
     return (rect1X1 < rect2X2 && rect1X2 > rect2X1 && rect1Y1 < rect2Y2 && rect1Y2 > rect2Y1);
 }
 
-function calcFitness(player, time) {
-    return player.x - (time / 20);
+function calcFitness(player) {
+    return player.x / 2;
 }
 
 function pointInCircle(x, y, cx, cy, radius) {
