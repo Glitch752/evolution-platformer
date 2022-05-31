@@ -151,6 +151,7 @@ let generationTimeout = 10000; // In milliseconds
 // Do not modify this stuff
 let currentGeneration = 0;
 let generationTime = 0;
+let topFitness = 0;
 
 let networkOutputs = [
     {type: "pressingW"},
@@ -209,7 +210,8 @@ function generatePlayers() {
 }
 
 function evolvePlayers() {
-    let sortedPlayers = players.sort((p1, p2) => p1.fitness - p2.fitness);
+    let sortedPlayers = players.sort((p1, p2) => p2.fitness - p1.fitness);
+    topFitness = sortedPlayers[0].fitness;
     
     let newPlayers = [];
 
@@ -265,7 +267,7 @@ function evolvePlayers() {
 }
 
 function getRandomPlayer(players, probabilityPerPlayer) {
-    let sortedPlayers = players.sort((p1, p2) => p1.fitness - p2.fitness);
+    let sortedPlayers = players.sort((p1, p2) => p2.fitness - p1.fitness);
 
     let pickedPlayer;
     let pickIndex = 0;
@@ -810,9 +812,7 @@ function render(time) {
     ctx.textAlign = "left";
     ctx.fillText(`Delta time: ${Math.round(deltaTime * 100) / 100}`, 20, 40);
     ctx.fillText(`Generation: ${currentGeneration}`, 20, 80);
-    let fitnessArray = players.map(p => p.fitness);
-    let highestFitness = Math.max(...fitnessArray);
-    ctx.fillText(`Top fitness: ${Math.floor(highestFitness * 100) / 100}`, 20, 120);
+    ctx.fillText(`Top fitness: ${Math.floor(topFitness * 100) / 100}`, 20, 120);
 
     if(selectedPlayer !== null) {
         ctx.fillStyle = "#000000";
