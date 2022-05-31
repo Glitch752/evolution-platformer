@@ -314,7 +314,8 @@ function mutate(network, mutationRate) {
                 let neuronIndex = Math.floor(Math.random() * network[i].length);
                 let newNeuron = {
                     connections: [],
-                    value: 0
+                    value: 0,
+                    realValue: 0
                 };
 
                 network[i].splice(neuronIndex + 1, 0, newNeuron);
@@ -416,7 +417,8 @@ function createRandomNetwork() {
             for(let i = 0; i < networkInputs.length; i++) {
                 let neuron = {
                     connections: [],
-                    value: 0
+                    value: 0,
+                    realValue: 0
                 }
                 if(i === networkInputs.length - 1) {
                     for(let l = 0; l < networkLayers; l++) {
@@ -443,7 +445,8 @@ function createRandomNetwork() {
             for(let i = 0; i < networkOutputs.length; i++) {
                 let neuron = {
                     connections: [],
-                    value: 0
+                    value: 0,
+                    realValue: 0
                 };
                 neurons.push(neuron);
             }
@@ -451,7 +454,8 @@ function createRandomNetwork() {
             for(let i = 0; i < layerNeurons[n]; i++) {
                 let neuron = {
                     connections: [],
-                    value: 0
+                    value: 0,
+                    realValue: 0
                 };
                 for(let c = 0; c < Math.floor(Math.random() * 5); c++) {
                     neuron.connections.push({
@@ -646,12 +650,14 @@ function render(time) {
 
         for(let n = 0; n < players[i].network[0].length; n++) {
             players[i].network[0][n].value = inputs[n];
+            players[i].network[0][n].realValue = inputs[n];
         }
 
         // Set all neurons' values to 0
         for(let n = 1; n < players[i].network.length; n++) {
             for(let m = 0; m < players[i].network[n].length; m++) {
                 players[i].network[n][m].value = 0;
+                players[i].network[n][m].realValue = 0;
             }
         }
 
@@ -662,13 +668,17 @@ function render(time) {
                 let connections = players[i].network[n][m].connections;
                 for(let c = 0; c < connections.length; c++) {
                     let value = connections[c].weight * players[i].network[n][m].value;
-                    value = value > 0 ? 1 : 0;
+                    let newValue = value > 0 ? 1 : 0;
                     if(connections[c].bias) {
                         if(players[i].network[connections[c].toLayer][connections[c].to] === undefined) continue;
-                        players[i].network[connections[c].toLayer][connections[c].to].value = value;
+                        let connection = players[i].network[connections[c].toLayer][connections[c].to];
+                        connection.value = newValue;
+                        connection.realValue = value;
                     } else {
                         if(players[i].network[n + 1][connections[c].to] === undefined) continue;
-                        players[i].network[n + 1][connections[c].to].value = value;
+                        let connection = players[i].network[n + 1][connections[c].to];
+                        connection.value = newValue;
+                        connection.realValue = value;
                     }
                 }
 
@@ -870,7 +880,7 @@ function render(time) {
                     ctx.font = '20px Arial';
                     ctx.textAlign = "left";
                     ctx.fillStyle = "#000000";
-                    ctx.fillText(`${Math.floor(node.value * 100) / 100}`, widthOffset + nodeWidth + 10, 25 + nodeHeight + heightOffset);
+                    ctx.fillText(`${Math.floor(node.value * 100) / 100} (${Math.floor(node.realValue * 100) / 100})`, widthOffset + nodeWidth + 10, 25 + nodeHeight + heightOffset);
                     ctx.fillStyle = "#222222";
                 } else {
                     let clampedValue = Math.min(Math.max(node.value, 0), 1);
